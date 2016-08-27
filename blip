@@ -1,0 +1,557 @@
+#!/usr/bin/env python
+import os
+import json
+import sys
+import time
+from pprint import pprint
+debug_on=False
+
+if 'debug' in os.environ:
+    if os.environ['debug'].lower() in ['true', 't', 'y', 'yes']:
+       debug_on=True
+
+def debug_print(text, on="default"):
+    global inside
+    global debug_on
+    if on == "default":
+        on = debug_on
+    if on:
+       print("[{}] {}".format(inside, text))
+
+def main():
+    global buf # all output goes into buf.
+    global debug_on
+    if sys.argv[1] == "-d":
+        debug_on=True
+        template_file_name=sys.argv[2]
+    else:
+        template_file_name=sys.argv[1]
+    global file_nest
+    global inside
+    file_nest = []
+    buf = [""]
+    template, real_file_name = getTemplateContents(template_file_name)
+    inside = 0
+    runTemplate(template, real_file_name)  # fill buf with results of template
+    print buf[0],
+
+def getTemplateContents(template_file_name):
+    ''' read in entire file
+        last newline is removed as poor-mans
+        approach to prevent extra blank lines in output
+        users can add blank line to template file if needed.
+    '''
+
+    # .tmpl is assumed, if missing
+    if (template_file_name[-5:] != ".tmpl"):
+       template_file_name += ".tmpl"
+    with open(template_file_name) as template_file:
+        template = template_file.read()
+
+    # ignore final newline
+    if template[-1:] == '\n':
+        template = template[:-1]
+
+    return template, template_file_name
+
+def mergeDicts(first, second):
+
+    merge_dict = first
+    for k in second:
+        merge_dict[k] = second[k] # add in included vars, override previous values
+    return merge_dict
+
+def getMultivarInfo(include_var_set, posVars):
+    multivar = []
+    multivar_len = 0
+    #debug_print(include_var_set)
+
+    # Check for multiple values, and ensure that all have same
+    # number of values. All multivalued variable names
+    # are placed here into 'multivar' for later reference
+    for include_var in include_var_set:
+       #debug_print(include_var)
+       if type(include_var_set[include_var]) == type([]): # var value is a list.
+          debug_print("  MVS: {}".format(include_var_set[include_var]))
+          multivar.append(include_var)
+          if len(multivar) == 1:
+              debug_print ('GMIL1 {}'.format(multivar))
+              multivar_len = len(include_var_set[include_var])
+              #debug_print ("new  {} mlen = {}".format(include_var, include_var_set[include_var]), multivar_len)
+          else:
+              debug_print ('GMIL {}'.format(multivar))
+              #debug_print ("var = {}, ilen = {}, mlen = {}".format(include_var, include_var_set[include_var], multivar_len))
+              if len(include_var_set[include_var]) != multivar_len:
+                  oops_print(posVars, "Multi-valued variables not of same length ({})".format(multivar_len),
+                             "{} : {}".format(include_var, include_var_set))
+
+    return multivar, multivar_len
+
+def runMultivarTemplate(template, template_file_name, template_vars, include_var_set, multivar, multivar_len):
+    return_vars = template_vars # default, in case nothing happens.
+    # run Template for each corresponding tuplet of the multi-valued variables
+
+    # start with all the template variables and included variables together.
+    #  multi-valued include variables will have list type.
+    master_merged_template_vars = mergeDicts(template_vars, include_var_set)
+
+    # place each multivalued variable with the tuplet value, into 'merged_template_vars'
+    for i in range(multivar_len):
+       merged_template_vars = master_merged_template_vars
+       for v in multivar:
+           merged_template_vars[v] = include_var_set[v][i]
+       debug_print("  MTV {}".format(v))
+       #debug_print i, merged_template_vars
+
+       # Note: 'return_vars' will be from the last tuple used.
+       return_vars = runTemplate(template, '{}'.format(template_file_name), merged_template_vars)
+
+
+def mergeAndRun(template, template_file_name, template_vars, include_var_set, posVars):
+
+    '''
+    mergeAndRun: process the template, applying template vars
+    and each set of local vars set with the invocation.
+    rules for the include var set are described in the documentation.
+    basically, any var can have multiple values or a single value.
+    all include vars with multiple values must have the same number
+    of values. They will be applied in a unified sequence.
+    '''
+    multivar, multivar_len = getMultivarInfo(include_var_set, posVars)
+
+    # If there are multivalue variables, must runTemplate on each tuplet...
+    if multivar:
+        return_vars = runMultivarTemplate(template, template_file_name, template_vars, include_var_set, multivar, multivar_len)
+
+    else: # single-valued variables...
+        merged_template_vars = mergeDicts(template_vars, include_var_set)
+        return_vars = runTemplate(template, template_file_name, merged_template_vars)
+
+    return return_vars
+
+def count_lines(template, pos):
+    newline_count = template[:pos].count('\n')
+    return newline_count + 1
+
+def oops_print(pos, error, context):
+    print('Template Error: {}'.format(error))
+    print('Context: ==={}==='.format(context))
+    print("Template Nest:")
+    for rev in range(len(file_nest)-1,-1,-1): # traverse in reverse
+        file_name =  file_nest[rev]["file"]
+        replacement_offset = file_nest[rev]["replacement_offset"]
+        lineno = count_lines(file_nest[rev]["text"], pos - replacement_offset)
+        print ('    {}:{}'.format(file_nest[rev]["file"], lineno))
+        try:
+            with open(file_name, "r") as which:
+               t = which.readlines()
+               print ("      {}".format(t[lineno-1].strip()))
+        except:
+            pass
+    exit(2)
+
+def findFirstItem(string, item):
+    ''' search for the given 'item' or two 'item' in a row, which is considered a quoted 'item'.
+        if a quoted 'item' is found, it is skipped over (i.e. ignored) in the search for the 'item'
+    '''
+    posOut = 0
+    posItem = -1
+    string_len = len(string)
+    item_len = len(item)
+    while posOut <= string_len:
+        posItem = string[posOut:].find(item)
+        posQItem = string[posOut:].find('{0}{0}'.format(item))
+        if posItem == -1:
+            break;
+        else:
+            if (posQItem == -1) or (posItem < posQItem):
+                posItem += posOut
+                break;  # found
+            else:
+                posOut += posQItem + 2*item_len # look again, after the quoted item
+                debug_print("SA: {} {} ===>>>{}<<<===".format(item, posOut, string[posOut:]))
+
+    debug_print("FI: {} {} ===>>>{}<<<===".format(item, posItem, string[posItem:]))
+    return posItem
+
+def findMatchingEnd(template, pos):
+    ''' given a string (template) and a starting search position, look for the closing '}}'.
+        this assumes that the starting position is after an opening '{{'.
+    '''
+    global file_nest
+    nesting  = 1 # start with assumption of a single open '{{'.
+    posMatch   = pos
+    #debug_print("findM S: {}".format(template[pos:pos+10]))
+    while nesting > 0:
+        posEnd   = findFirstItem(template[posMatch:],'}}')
+        posStart = findFirstItem(template[posMatch:],'{{')
+        #debug_print("findM A: {}-{}".format(posStart, posEnd))
+
+        # if {{ opens up a new embedded directive, count that.
+        if posStart != -1 and posStart < posEnd:
+            posMatch += posStart + 2 # move past the {{
+            nesting += 1;
+            continue
+
+        # if }} closes an embedded directive, count that.
+        if posEnd != -1:
+            posMatch += posEnd + 2 # move past the }}
+            nesting -= 1;
+            continue
+
+        return -1 # failed: no closing '}}' found
+
+    #debug_print("foundMatchingEnd: {}".format(template[posMatch]))
+    debug_print("ME: {}".format(template[pos-2:posMatch]))
+    return posMatch # success: closing '}}' found
+
+def getIncludeTemplateVars(template, template_vars, posVars, posEnd):
+    include_template_vars_text = template[posVars:posEnd-2].strip() # get the vars text, ending just before '}}'
+
+    include_template_vars = {}; # default: no vars
+
+    if len(include_template_vars_text) != 0: # if there are 'include vars'...
+        # search for valid json describing variables and values to pass to the template
+        s = 1
+        while s <= len(include_template_vars_text):
+            try:
+                include_template_vars = json.loads(include_template_vars_text[:s])
+                break
+            except:
+                s += 1
+
+        # if no json...
+        if ( s > len(include_template_vars_text) ):
+            # if no json and no indirect refs...
+            if ( include_template_vars_text[0] != '!' ):
+                oops_print(posVars,
+                    "Variables to pass to template are malformed. Must be valid json and/or indirect references.",
+                    include_template_vars_text)
+
+            # no json, but indirect ref(s) found...start over...
+            s = 0 # go back to the beginning, as no json was found
+
+        debug_print("TPVJ: {}".format(include_template_vars_text[:s]))
+        indirect_template_vars_text = include_template_vars_text[s:].strip()
+        debug_print("TPVI: {}".format(indirect_template_vars_text))
+
+        # indirect include vars - extract them from an existing template variable.
+        if len(indirect_template_vars_text) > 0:
+          if indirect_template_vars_text[0] == "!":
+            # get all indirects
+            debug_print("  IIVR: {}".format(indirect_template_vars_text))
+            include_template_var_names = [i for i in indirect_template_vars_text.split(" ") if i != '']
+            debug_print("  IIVRL: {}".format(include_template_var_names))
+            for var_name in include_template_var_names:
+                if var_name[0] != "!":
+                    oops_print(posVars, "Indirect variable name missing !", var_name)
+
+                local_assign = var_name.find('=')
+                if local_assign == -1:
+                    canon_var_name = var_name[1:]
+                    formal_name = canon_var_name
+                else:
+                    canon_var_name = var_name[local_assign+1:]
+                    formal_name = var_name[1:local_assign]
+                try:
+                    # construct json for include vars by using the variable name.
+                    # TODO: fix it so ! can be in the include variable value rather than require it a pos[0]
+                    debug_print("ITVA: {} - {}".format(formal_name, template_vars[canon_var_name]))
+                    include_template_vars[formal_name] = template_vars[canon_var_name] # variable substitute
+                    debug_print("ITVL: {}".format(include_template_vars))
+                    #debug_print("{}".format(template_vars))
+                    debug_print("-----------------------")
+                except:
+                    #debug_print(template_vars)
+                    oops_print(posVars, "Indirect variable name not defined", canon_var_name)
+          else:
+            oops_print(posVars,
+                "Variables to pass to template are malformed. Must be valid json and/or indirect references.",
+                include_template_vars_text)
+
+    #print include_template_vars
+    return include_template_vars
+
+def handleTaggedAssignment(template, template_vars, var_name, posAssign, posTag, posEnd):
+    debug_print("TA: {} {} {}".format(var_name, template[posAssign:posTag].strip(), template[posTag:posEnd]))
+    var_value = template[posAssign+2:posTag].strip() # value to assign to variable
+    tag_name = template[posTag+2:posEnd-2].strip() # tag
+    #debug_print("tag {} found on {} with value {}".format(tag_name, var_name, var_value))
+
+    # tags live in the template_vars as regular variables...keeps the template engine simpler...
+    # although it does imply that tags and variables do mix.  note that assigning to a variable
+    # will overwrite the tag value(s) on the tag of the same name.. so rule of thumb: don't use
+    # the same names. another note: you can initialize a variable with one value, then add to
+    # it with tags. although that would be hard to follow.
+
+    if tag_name in template_vars: # if the tag is found in the template_vars
+       if type(template_vars[tag_name]) != type([]): # has only single value, convert to array
+           template_vars[tag_name] = [ template_vars[tag_name], var_name ]
+       else: # already found as array..add new value to the list
+           template_vars[tag_name].append(var_name)
+    else: # new tag - single value
+       template_vars[tag_name] = var_name
+    template_vars[var_name] = var_value.replace(":==", ":=") # reduce embedded escaped ":="
+    return template_vars
+
+def handleUntaggedAssignment(template, template_vars, var_name, posAssign, posEnd):
+    var_value = template[posAssign+2:posEnd-2].strip()  # value to assign to variable
+
+    debug_print("UA: {} := {}".format(var_name, template[posAssign+2:posEnd-2].strip()))
+    #debug_print ("new var: {} $ {}".format(var_name, var_value))
+    #debug_print(template_vars)
+
+    template_vars[var_name] = var_value.replace(":==", ":=") # reduce embedded escaped ":="
+    return template_vars
+
+def handleIndirectVariableReference(template, template_vars, posBegin, posEnd):
+    #debug_print(template_vars)
+    tvar = template[posBegin+3:posEnd-2].strip()
+    debug_print("  IVR: {}".format(tvar))
+    if tvar not in template_vars:
+        oops_print(posBegin, "Indirect variable name not defined", tvar)
+    debug_print("  IVR: {} {}".format(tvar, template_vars[tvar]))
+
+    # NOTE: Run indirect reference, and pick up any changes to resulting vars into the current context.
+    template_vars = runTemplate('{{' + template_vars[tvar] + '}}', "(inline)", template_vars)
+    return template_vars
+
+def handleAssignment(template, template_vars, posBegin, posAssign, posEnd):
+    debug_print("VA: {} {} looking for :{}".format(template[posBegin:posAssign].strip(), template[posAssign:posEnd].strip(), '='*len(buf)))
+    var_name  = template[posBegin+2:posAssign].strip()
+    if var_name[0] == '<':
+        var_name = var_name[1:]
+
+    posSearch=posAssign+2
+    while posSearch < posEnd:
+        #print("buflen: {}".format(len(buf)))
+        # search for (optional) tagging field in the assignment. Looking only for proper number of '='.
+        posTag = template[posSearch:posEnd].find(":{}".format("="*len(buf)))
+
+        if posTag != -1: # the variable assignment is tagged
+            # check for an extra '=', indicating escaped := keyword, which should be ignored
+            if ( (posTag + posSearch + len(buf) + 1) < posEnd ) and ( template[posTag+posSearch+len(buf)+1] == '=' ):
+                posSearch += posTag + 1
+                continue
+
+            posTag += posSearch
+            template_vars = handleTaggedAssignment(template, template_vars, var_name, posAssign, posTag, posEnd)
+        else: # variable assignment has no tags
+            template_vars = handleUntaggedAssignment(template, template_vars, var_name, posAssign, posEnd)
+        break
+
+    #debug_print ("after new var: {} = {}".format(var_name, var_value))
+    #debug_print (template_vars)
+    return template_vars
+
+def handleVariableSubstitution(template, template_vars, posBegin, posEnd):
+    global buf
+    template_variable_name = template[posBegin+2:posEnd-2].strip()  #everything inside the '{{' and '}}'
+    if template_variable_name not in template_vars: # if it's new, oops
+        oops_print(posBegin, "Unknown template variable =={}== referenced".format(template_variable_name),
+                   template[posBegin:posEnd])
+    debug_print("  VS: {}".format(template_vars[template_variable_name]))
+    buf[-1] += template_vars[template_variable_name] # extract the value and add it to the template output
+
+def handleAssignmentAndSubstitution(template, template_vars, posBegin, posEnd):
+    debug_print ("VAS: looking for ':{}' in '{}'".format('='*len(buf), template[posBegin:posEnd]))
+    posSearch = posBegin
+    #print("buflen: {} {}".format(len(buf), '='*len(buf)))
+    while posSearch < posEnd:
+        posAssign = template[posSearch:posEnd].find(":{}".format("="*len(buf)))
+        #debug_print ("posAssign is {}".format(posAssign))
+        if posAssign != -1:  # variable assignment
+            # check for an extra '=', indicating escaped := keyword, which should be ignored
+            if ( (posAssign + posSearch + len(buf) + 1) < posEnd ) and ( template[posAssign+posSearch+len(buf)+1] == '=' ):
+                posSearch += posAssign + 1
+                continue
+            posAssign += posSearch
+            template_vars = handleAssignment(template, template_vars, posBegin, posAssign, posEnd)
+        else: # variable substitution
+            handleVariableSubstitution(template, template_vars, posBegin, posEnd)
+        break;
+    return template_vars
+
+def runIncludedTemplate(include_template, real_file_name, template_vars, include_template_vars, posVars):
+    # if the variables are provided in list form, each list element is assumed to be
+    # a valid set of variables (a json dictionary)...each element is passed to the template
+    debug_print("RIT: {}".format(include_template_vars))
+    if type(include_template_vars) == type([]): # it's a list, so we have to run multiple times
+
+       debug_print("RITL:")
+       return_vars = template_vars # just in case the list is empty
+       # run Template for each value in the list
+       #debug_print(include_template_vars)
+
+       # pass each element as the 'include_vars' set
+       for include_var_set in include_template_vars:
+
+          # run the template. the last element's vars will be saved in 'return_vars'.
+          return_vars = mergeAndRun(include_template, real_file_name, template_vars, include_var_set, posVars)
+    else:
+        debug_print("RITO:")
+        debug_print("mergeAndRun once with {}".format(include_template_vars))
+        return_vars = mergeAndRun(include_template, real_file_name, template_vars, include_template_vars, posVars)
+    return return_vars
+
+def processEmbeddedDirectives(template, template_vars, posBegin, posEnd):
+    global buf
+    global file_nest
+    posEmbedOut = posBegin + 2 # start looking after opening {{
+    debug_print("LFE: {}".format(template[posBegin:posEnd]))
+    while posEmbedOut < posEnd:
+        posEmbedBegin, posEmbedEnd = nextDirective(template, posEmbedOut, posEnd)
+        if posEmbedBegin != -1:
+            buf.append("") # place to store recursed buffer
+            template_vars = runTemplate(template[posEmbedBegin:posEmbedEnd], "(inline)", template_vars)
+            replacement = buf[-1]
+
+            debug_print("REPL: {}".format(replacement))
+            # reduce embedded escaped := by one equals sign
+            replacement = replacement.replace(":==", ":=")
+            debug_print("RREPL: {}".format(replacement))
+
+            buf = buf[:-1] # delete temp buffer
+
+            # replace embedded directive with results
+            debug_print("  rpl: ={}=".format(replacement))
+            template = template[0:posEmbedBegin] + replacement + template[posEmbedEnd:]
+            debug_print("TR: >>>==={}===<<<\n".format(template))
+            debug_print("DF: {} now {}".format(posEmbedEnd - posEmbedBegin, len(replacement)))
+            posDiff = len(replacement) - (posEmbedEnd - posEmbedBegin)
+            file_nest[-1]["replacement_offset"] += posDiff
+            posEnd += posDiff # adjust end pointer
+            posEmbedOut = posEmbedEnd + posDiff # move to after the replaced }}
+            debug_print("pe: ==={}===".format(template[posEnd:]))
+
+            # TODO: adjust line_begin array (dup: keep original for prints, keep adjusted for identification)
+        else:
+            break
+    return template, template_vars, posEnd
+
+def nextDirective(template, posBegin, posEnd):
+    ''' search for '{{' ... '}}' if any. '''
+    #debug_print "looking for {{: posBegin: ", posBegin
+
+    # find the next template directive position, relative to posBegin
+    posOpen = findFirstItem(template[posBegin:posEnd], '{{')
+    if posOpen != -1:
+        posOpen += posBegin # absolute position of '{{'
+        posClose = findMatchingEnd(template, posOpen + 2)
+
+        if posClose == -1:
+            oops_print(posOpen, "No matching }}", template[posOpen:posOpen+20].strip())
+
+        debug_print("fTD: {}".format(template[posOpen:posClose]))
+    else:
+        debug_print("ND:")
+        posClose = -1 # a "don't care" value
+
+    return posOpen, posClose
+
+def handleIncludeTemplate(template, template_vars, posBegin, posEnd):
+    if template[posBegin+3] == ":" : # Two colons: Template variable changes must propagate upward
+       propagate = True
+       delimColon = "::"
+    else:
+       propagate = False
+       delimColon = ":"
+
+    debug_print("  {}".format(delimColon))
+    #debug_print "found include!"
+    # Locate ':' or '::' after file name.
+    # This indicates end of file name, and the
+    # start of (optional) 'include variables' to be
+    # passed into the template to be included.
+
+    # look for vars specification in the template invocation directive.
+    # (search for final ':' or '::'. 'include vars' will follow, if any)
+    posVars = template[posBegin+2+len(delimColon):posEnd].find(delimColon)
+    if posVars == -1: # if no final ':' or '::' - oops
+       oops_print(
+          posBegin,
+          "Included {e}template{e} file must also end in matching '{e}' (i.e. {e}mytemplate{e})".format(e=delimColon),
+          template[posBegin:posEnd])
+
+    posVars += posBegin + 2 + 2*len(delimColon);  # include vars, if any, start after the final ':' or '::'
+    include_template_name = template[posBegin + 2 + len(delimColon):posVars-len(delimColon)].strip()
+    #debug_print("include_template_name: =="+include_template_name+ "==")
+    if include_template_name[0] == '<': # template as variable
+        if include_template_name[1:] not in template_vars:
+            oops_print(posBegin, "Here-template not defined.",
+                       "{} : {}".format(include_template_name, template[posBegin:posEnd]))
+
+        include_template = template_vars[include_template_name[1:]]
+        real_file_name = "({})".format(include_template_name)
+    else:
+        include_template, real_file_name = getTemplateContents(include_template_name)
+
+    #debug_print ("==={}===".format(template[posVars:posEnd-2]))
+    include_template_vars = getIncludeTemplateVars(template, template_vars, posVars, posEnd)
+
+    return_vars = runIncludedTemplate(include_template, real_file_name, template_vars, include_template_vars, posVars)
+
+    # if the included template was invoked in propagate mode (with '::')
+    # update the current context.
+    if propagate:
+        template_vars = return_vars
+
+    return template_vars
+
+def runTemplate(template, template_file_name, template_vars={}):
+    global buf
+    global file_nest
+    global inside
+
+    #debug_print template_file_name
+    #debug_print template_vars
+
+    #debug_print (template_file_name)
+    file_nest.append({ "file" : template_file_name, "text" : template, "replacement_offset" : 0})
+
+    inside += 1
+    template_strlen = len(template)
+
+    debug_print("TS: >>>==={}===<<<".format(template))
+    # initialize template inline pointers
+    posOut=0 # processing position (relative to start of template)
+
+    # loop until the entire template has been processed and output to 'buf'
+    while posOut < template_strlen:
+        posBegin, posEnd = nextDirective(template, posOut, len(template))
+        debug_print("NXD: {}".format(template[posBegin:posEnd]))
+        if posBegin != -1:
+
+            if posBegin > posOut:
+               debug_print("LT: {}".format(template[posOut:posBegin]))
+               buf[-1] += template[posOut:posBegin]         # output non-templated text
+
+            if template[posBegin+2] != '<': # skip embedded processing if directive starts with {{<
+                template, template_vars, posEnd = processEmbeddedDirectives(template, template_vars, posBegin, posEnd)
+                template_strlen = len(template) # adjustment for substitutions...
+
+            debug_print("PE: ==={}===".format(template[posBegin:posEnd]))
+            if template[posBegin+2] == ':': # Included template file (just after the opening '{{')
+                debug_print("hit: {}".format(template[posBegin:posEnd]))
+                template_vars = handleIncludeTemplate(template, template_vars, posBegin, posEnd)
+            elif template[posBegin+2] == "!": #indirect variable reference
+                debug_print("hivr: {}".format(template[posBegin:posEnd]))
+                template_vars = handleIndirectVariableReference(template, template_vars, posBegin, posEnd)
+            elif template[posBegin+2] == "#": # comment
+                debug_print("CMNT: {}".format(template[posBegin:posEnd]))
+            else: # assign/substitute template variable
+                debug_print("has: {}".format(template[posBegin:posEnd]))
+                template_vars = handleAssignmentAndSubstitution(template, template_vars, posBegin, posEnd)
+            debug_print("z: {}".format(template[posBegin:posEnd]))
+            posOut = posEnd
+        else:
+           debug_print("FLT: {}".format(template[posOut:posBegin]))
+           buf[-1] += template[posOut:] # output remaining text
+           break
+        debug_print ("RE: >>>==={}===<<<".format(template[posOut:]))
+    file_nest = file_nest[:-1]
+    debug_print("\n>>>BUF==={}===BUF<<<\n".format(buf[-1]), False)
+    inside -= 1
+    return template_vars
+
+main()
