@@ -56,7 +56,7 @@ def getTemplateContents(template_file_name):
 
 def mergeDicts(first, second):
 
-    merge_dict = first
+    merge_dict = first.copy()
     for k in second:
         merge_dict[k] = second[k] # add in included vars, override previous values
     return merge_dict
@@ -97,7 +97,7 @@ def runMultivarTemplate(template, template_file_name, template_vars, include_var
 
     # place each multivalued variable with the tuplet value, into 'merged_template_vars'
     for i in range(multivar_len):
-       merged_template_vars = master_merged_template_vars
+       merged_template_vars = master_merged_template_vars.copy()
        for v in multivar:
            merged_template_vars[v] = include_var_set[v][i]
        debug_print("  MTV {}".format(v))
@@ -105,6 +105,8 @@ def runMultivarTemplate(template, template_file_name, template_vars, include_var
 
        # Note: 'return_vars' will be from the last tuple used.
        return_vars = runTemplate(template, '{}'.format(template_file_name), merged_template_vars)
+
+    return return_vars
 
 
 def mergeAndRun(template, template_file_name, template_vars, include_var_set, posVars):
@@ -273,6 +275,7 @@ def getIncludeTemplateVars(template, template_vars, posVars, posEnd):
     return include_template_vars
 
 def handleTaggedAssignment(template, template_vars, var_name, posAssign, posTag, posEnd):
+    return_vars = template_vars.copy()
     debug_print("TA: {} {} {}".format(var_name, template[posAssign:posTag].strip(), template[posTag:posEnd]))
     var_value = template[posAssign+2:posTag].strip() # value to assign to variable
     tag_name = template[posTag+2:posEnd-2].strip() # tag
@@ -286,23 +289,24 @@ def handleTaggedAssignment(template, template_vars, var_name, posAssign, posTag,
 
     if tag_name in template_vars: # if the tag is found in the template_vars
        if type(template_vars[tag_name]) != type([]): # has only single value, convert to array
-           template_vars[tag_name] = [ template_vars[tag_name], var_name ]
+           return_vars[tag_name] = [ template_vars[tag_name], var_name ]
        else: # already found as array..add new value to the list
-           template_vars[tag_name].append(var_name)
+           return_vars[tag_name].append(var_name)
     else: # new tag - single value
-       template_vars[tag_name] = var_name
-    template_vars[var_name] = var_value.replace(":==", ":=") # reduce embedded escaped ":="
-    return template_vars
+       return_vars[tag_name] = var_name
+    return_vars[var_name] = var_value.replace(":==", ":=") # reduce embedded escaped ":="
+    return return_vars
 
 def handleUntaggedAssignment(template, template_vars, var_name, posAssign, posEnd):
+    return_vars = template_vars.copy()
     var_value = template[posAssign+2:posEnd-2].strip()  # value to assign to variable
 
     debug_print("UA: {} := {}".format(var_name, template[posAssign+2:posEnd-2].strip()))
     #debug_print ("new var: {} $ {}".format(var_name, var_value))
     #debug_print(template_vars)
 
-    template_vars[var_name] = var_value.replace(":==", ":=") # reduce embedded escaped ":="
-    return template_vars
+    return_vars[var_name] = var_value.replace(":==", ":=") # reduce embedded escaped ":="
+    return return_vars
 
 def handleIndirectVariableReference(template, template_vars, posBegin, posEnd):
     #debug_print(template_vars)
@@ -313,8 +317,8 @@ def handleIndirectVariableReference(template, template_vars, posBegin, posEnd):
     debug_print("  IVR: {} {}".format(tvar, template_vars[tvar]))
 
     # NOTE: Run indirect reference, and pick up any changes to resulting vars into the current context.
-    template_vars = runTemplate('{{' + template_vars[tvar] + '}}', "(inline)", template_vars)
-    return template_vars
+    return_vars = runTemplate('{{' + template_vars[tvar] + '}}', "(inline)", template_vars)
+    return return_vars
 
 def handleAssignment(template, template_vars, posBegin, posAssign, posEnd):
     debug_print("VA: {} {} looking for :{}".format(template[posBegin:posAssign].strip(), template[posAssign:posEnd].strip(), '='*len(buf)))
@@ -335,14 +339,14 @@ def handleAssignment(template, template_vars, posBegin, posAssign, posEnd):
                 continue
 
             posTag += posSearch
-            template_vars = handleTaggedAssignment(template, template_vars, var_name, posAssign, posTag, posEnd)
+            return_vars = handleTaggedAssignment(template, template_vars, var_name, posAssign, posTag, posEnd)
         else: # variable assignment has no tags
-            template_vars = handleUntaggedAssignment(template, template_vars, var_name, posAssign, posEnd)
+            return_vars = handleUntaggedAssignment(template, template_vars, var_name, posAssign, posEnd)
         break
 
     #debug_print ("after new var: {} = {}".format(var_name, var_value))
-    #debug_print (template_vars)
-    return template_vars
+    #debug_print (return_vars)
+    return return_vars
 
 def handleVariableSubstitution(template, template_vars, posBegin, posEnd):
     global buf
@@ -354,6 +358,7 @@ def handleVariableSubstitution(template, template_vars, posBegin, posEnd):
     buf[-1] += template_vars[template_variable_name] # extract the value and add it to the template output
 
 def handleAssignmentAndSubstitution(template, template_vars, posBegin, posEnd):
+    return_vars = template_vars # default, in case nothing happens.
     debug_print ("VAS: looking for ':{}' in '{}'".format('='*len(buf), template[posBegin:posEnd]))
     posSearch = posBegin
     #print("buflen: {} {}".format(len(buf), '='*len(buf)))
@@ -366,11 +371,11 @@ def handleAssignmentAndSubstitution(template, template_vars, posBegin, posEnd):
                 posSearch += posAssign + 1
                 continue
             posAssign += posSearch
-            template_vars = handleAssignment(template, template_vars, posBegin, posAssign, posEnd)
+            return_vars = handleAssignment(template, template_vars, posBegin, posAssign, posEnd)
         else: # variable substitution
             handleVariableSubstitution(template, template_vars, posBegin, posEnd)
         break;
-    return template_vars
+    return return_vars
 
 def runIncludedTemplate(include_template, real_file_name, template_vars, include_template_vars, posVars):
     # if the variables are provided in list form, each list element is assumed to be
@@ -379,7 +384,7 @@ def runIncludedTemplate(include_template, real_file_name, template_vars, include
     if type(include_template_vars) == type([]): # it's a list, so we have to run multiple times
 
        debug_print("RITL:")
-       return_vars = template_vars # just in case the list is empty
+       return_vars = template_vars # default in case the list is empty
        # run Template for each value in the list
        #debug_print(include_template_vars)
 
@@ -397,13 +402,15 @@ def runIncludedTemplate(include_template, real_file_name, template_vars, include
 def processEmbeddedDirectives(template, template_vars, posBegin, posEnd):
     global buf
     global file_nest
+    return_vars = template_vars # default, in case nothing happens.
     posEmbedOut = posBegin + 2 # start looking after opening {{
     debug_print("LFE: {}".format(template[posBegin:posEnd]))
     while posEmbedOut < posEnd:
         posEmbedBegin, posEmbedEnd = nextDirective(template, posEmbedOut, posEnd)
         if posEmbedBegin != -1:
             buf.append("") # place to store recursed buffer
-            template_vars = runTemplate(template[posEmbedBegin:posEmbedEnd], "(inline)", template_vars)
+            # pass in current 'return_vars', which may have been changed by earlier up-scoping embedded directive
+            return_vars = runTemplate(template[posEmbedBegin:posEmbedEnd], "(inline)", return_vars)
             replacement = buf[-1]
 
             debug_print("REPL: {}".format(replacement))
@@ -427,7 +434,7 @@ def processEmbeddedDirectives(template, template_vars, posBegin, posEnd):
             # TODO: adjust line_begin array (dup: keep original for prints, keep adjusted for identification)
         else:
             break
-    return template, template_vars, posEnd
+    return template, return_vars, posEnd
 
 def nextDirective(template, posBegin, posEnd):
     ''' search for '{{' ... '}}' if any. '''
@@ -491,18 +498,19 @@ def handleIncludeTemplate(template, template_vars, posBegin, posEnd):
 
     return_vars = runIncludedTemplate(include_template, real_file_name, template_vars, include_template_vars, posVars)
 
-    # if the included template was invoked in propagate mode (with '::')
-    # update the current context.
-    if propagate:
-        template_vars = return_vars
+    # if the included template was NOT invoked in propagate mode (with '::')
+    # revert the return_vars, ignoring any changes to the vars.
+    if not propagate:
+        return_vars = template_vars
 
-    return template_vars
+    return return_vars
 
 def runTemplate(template, template_file_name, template_vars={}):
     global buf
     global file_nest
     global inside
 
+    template_vars = template_vars.copy()
     #debug_print template_file_name
     #debug_print template_vars
 
