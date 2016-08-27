@@ -308,6 +308,10 @@ def handleUntaggedAssignment(template, template_vars, var_name, posAssign, posEn
     return_vars[var_name] = var_value.replace(":==", ":=") # reduce embedded escaped ":="
     return return_vars
 
+def handleBlipDirective(template, template_vars, posBegin, posEnd):
+    if template[posBegin+2:posEnd-2] == "@vars":
+        pprint(template_vars)
+
 def handleIndirectVariableReference(template, template_vars, posBegin, posEnd):
     #debug_print(template_vars)
     tvar = template[posBegin+3:posEnd-2].strip()
@@ -545,6 +549,8 @@ def runTemplate(template, template_file_name, template_vars={}):
             elif template[posBegin+2] == "!": #indirect variable reference
                 debug_print("hivr: {}".format(template[posBegin:posEnd]))
                 template_vars = handleIndirectVariableReference(template, template_vars, posBegin, posEnd)
+            elif template[posBegin+2] == "@": # blip directive
+                handleBlipDirective(template, template_vars, posBegin, posEnd)
             elif template[posBegin+2] == "#": # comment
                 debug_print("CMNT: {}".format(template[posBegin:posEnd]))
             else: # assign/substitute template variable
