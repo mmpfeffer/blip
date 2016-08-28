@@ -359,7 +359,11 @@ def handleVariableSubstitution(template, template_vars, posBegin, posEnd):
         oops_print(posBegin, "Unknown template variable =={}== referenced".format(template_variable_name),
                    template[posBegin:posEnd])
     debug_print("  VS: {}".format(template_vars[template_variable_name]))
-    buf[-1] += template_vars[template_variable_name] # extract the value and add it to the template output
+    if type(template_vars[template_variable_name]) == type([]):
+        if len(template_vars[template_variable_name]) != 0:
+            buf[-1] += '["' + '", "'.join(template_vars[template_variable_name]) + '"]'
+    else:
+        buf[-1] += template_vars[template_variable_name] # extract the value and add it to the template output
 
 def handleAssignmentAndSubstitution(template, template_vars, posBegin, posEnd):
     return_vars = template_vars # default, in case nothing happens.
