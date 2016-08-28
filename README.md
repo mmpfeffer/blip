@@ -5,9 +5,9 @@ Features
 
 1. Template Files
 
-   Template files by default end with the extension .tmpl
-   So if there is a template file named 'declare.tmpl', it will
-   be interpolated by
+   Template files end with the extension .tmpl, which is assumed
+   when using BLIP.  So if there is a template file named
+   'declare.tmpl', it can be invoked as 'declare'.
 
    Example: A template file containing simple text.
 
