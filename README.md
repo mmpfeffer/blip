@@ -8,20 +8,13 @@ Features
    Template files by default end with the extension .tmpl
    So if there is a template file named 'declare.tmpl', it will
    be interpolated by
+
+   Example: A template file containing simple text.
+
         declare.tmpl:
              We hold these truths to be self-evident...
 
         $ blip declare
-        We hold these truths to be self-evident...
-
-   It is possible to use other extensions, but then the full file
-   name must be given. For example, if the template file is named
-   declare.txt, invoke interpolation with:
-
-        declare.txt:
-             We hold these truths to be self-evident...
-
-        $ blip declare.txt
         We hold these truths to be self-evident...
 
 
