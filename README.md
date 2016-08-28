@@ -17,6 +17,9 @@ Features
         $ blip declare
         We hold these truths to be self-evident...
 
+   Template files are searched using the BLIP_PATH environment
+   variable, if set. Otherwise, the current directory is searched.
+
 
 2. Template Nesting
 
