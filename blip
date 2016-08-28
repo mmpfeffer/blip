@@ -10,6 +10,28 @@ if 'debug' in os.environ:
     if os.environ['debug'].lower() in ['true', 't', 'y', 'yes']:
        debug_on=True
 
+blip_path = ['.']
+if 'BLIP_PATH' in os.environ:
+    blip_path = os.environ['BLIP_PATH'].split(":")
+
+def getFilePath(template_file_name):
+    global blip_path
+
+    # .tmpl is assumed, if missing
+    if (template_file_name[-5:] != ".tmpl"):
+       template_file_name += ".tmpl"
+
+    # Search the path for a matching file name
+    for p in blip_path:
+        try:
+            full_template_file_path = p + '/' + template_file_name
+            os.stat(full_template_file_path) # Check stat
+            break
+        except:
+            full_template_file_path = None
+
+    return full_template_file_path
+
 def debug_print(text, on="default"):
     global inside
     global debug_on
@@ -30,8 +52,8 @@ def main():
     global inside
     file_nest = []
     buf = [""]
-    template, real_file_name = getTemplateContents(template_file_name)
     inside = 0
+    template, real_file_name = getTemplateContents(template_file_name)
     runTemplate(template, real_file_name)  # fill buf with results of template
     print buf[0],
 
@@ -43,16 +65,16 @@ def getTemplateContents(template_file_name):
     '''
 
     # .tmpl is assumed, if missing
-    if (template_file_name[-5:] != ".tmpl"):
-       template_file_name += ".tmpl"
-    with open(template_file_name) as template_file:
+    full_template_file_path = getFilePath(template_file_name)
+    with open(full_template_file_path) as template_file:
         template = template_file.read()
 
     # ignore final newline
     if template[-1:] == '\n':
         template = template[:-1]
 
-    return template, template_file_name
+    debug_print("GTC: {}".format(full_template_file_path))
+    return template, full_template_file_path
 
 def mergeDicts(first, second):
 
@@ -143,7 +165,13 @@ def oops_print(pos, error, context):
         file_name =  file_nest[rev]["file"]
         replacement_offset = file_nest[rev]["replacement_offset"]
         lineno = count_lines(file_nest[rev]["text"], pos - replacement_offset)
-        print ('    {}:{}'.format(file_nest[rev]["file"], lineno))
+
+        # remove './' from path if in current directory
+        print_file_name = file_name
+        if os.path.dirname(file_name) == ".":
+            print_file_name = file_name[2:]
+
+        print ('    {}:{}'.format(print_file_name, lineno))
         try:
             with open(file_name, "r") as which:
                t = which.readlines()
