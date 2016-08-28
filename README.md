@@ -1,6 +1,14 @@
 BLIP
 Summary: A nested template language
 
+
+Installation
+
+   Place the 'blip' executable at /usr/local/bin and set it to be
+   executable (755).  As a system-wide utility it is probably
+   appropriate that the installed file '/usr/local/bin/blip' be owned by root.
+
+
 Features
 
 1. Template Files
@@ -23,7 +31,8 @@ Features
 
 2. Template Nesting
 
-   A template file may invoke other template files. This is known
+   A template file may invoke other template files, causing the invoked
+   template to be interpolated at the point of invocation. This is known
    as template nesting.  Nesting depth is limited only by the
    Python software function call limits on the host system.
 
@@ -41,13 +50,13 @@ Features
         It was the worst of times.
 
    NOTE: Template file 'poem2.tmpl' is invoked using the form {{:<template_name>:}}
-   without the need for the '.tmpl' extension, which is assumed.  If the file has
-   a different extension, it must be specified explicitly.
+   without the need for the '.tmpl' extension, which is assumed.
 
 
 3. Template Variables
 
-   Variables can be set once and interpolated later in the file, or used inside nested templates:
+   Variables can be set once and interpolated later in the file, or used inside nested templates.
+
    Example: Template variable interpolation later in the file
         greeting.tmpl:
              {{first := Abraham}}
@@ -57,7 +66,8 @@ Features
         $ blip greeting
         Hello Abraham Lincoln
 
-   Variables defined before invoking a nested template will be visible in the nested templates.
+   Variables defined before invoking a nested template will be visible in the nested template.
+
 
 4. Template Parameters
 
