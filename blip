@@ -40,14 +40,9 @@ def debug_print(text, on="default"):
     if on:
        print("[{}] {}".format(inside, text))
 
-def main():
+def oneFile(template_file_name):
     global buf # all output goes into buf.
     global debug_on
-    if sys.argv[1] == "-d":
-        debug_on=True
-        template_file_name=sys.argv[2]
-    else:
-        template_file_name=sys.argv[1]
     global file_nest
     global inside
     file_nest = []
@@ -57,6 +52,17 @@ def main():
     runTemplate(template, real_file_name)  # fill buf with results of template
     print buf[0],
 
+def main():
+    if sys.argv[1] == "-d":
+        debug_on=True
+        sys.argv[1:] = sys.argv[2:]
+
+    if len(sys.argv) > 1:
+        for template_file_name in sys.argv[1:]:
+            oneFile(template_file_name)
+    else:
+        oneFile('-')
+
 def getTemplateContents(template_file_name):
     ''' read in entire file
         last newline is removed as poor-mans
@@ -65,9 +71,14 @@ def getTemplateContents(template_file_name):
     '''
 
     # .tmpl is assumed, if missing
-    full_template_file_path = getFilePath(template_file_name)
-    with open(full_template_file_path) as template_file:
-        template = template_file.read()
+    if template_file_name != '-':
+        full_template_file_path = getFilePath(template_file_name)
+        with open(full_template_file_path) as template_file:
+            template = template_file.read()
+    else:
+        full_template_file_path = '(stdin)'
+        sys.stdin.seek(0)
+        template = sys.stdin.read()
 
     # ignore final newline
     if template[-1:] == '\n':
