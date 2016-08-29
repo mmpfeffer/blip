@@ -6,7 +6,8 @@ Installation
 
    Place the 'blip' executable at /usr/local/bin and set it to be
    executable (755).  As a system-wide utility it is probably
-   appropriate that the installed file '/usr/local/bin/blip' be owned by root.
+   appropriate that the installed file '/usr/local/bin/blip' be
+   owned by root.
 
 
 Features
@@ -67,6 +68,19 @@ Features
         Hello Abraham Lincoln
 
    Variables defined before invoking a nested template will be visible in the nested template.
+
+   Example: Template variable interpolation inside a nested template
+
+        greeting.tmpl:
+             Hello, {{first}} {{last}}
+
+        main.tmpl:
+             {{first := Abraham}}
+             {{last  := Lincoln}}
+             {{:greeting:}}
+
+        $ blip main
+        Hello Abraham Lincoln
 
 
 4. Template Parameters
