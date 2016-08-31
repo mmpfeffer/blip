@@ -52,7 +52,22 @@ def oneFile(template_file_name):
     runTemplate(template, real_file_name)  # fill buf with results of template
     print buf[0],
 
+def usage():
+    print ("Usage:")
+    print
+    print ("\tblip [options] [template1 [template2 [...] ] ]")
+    print ("\ttemplateN specifies the templates to interpolate, in sequence.")
+    print ("'tIf ommitted, stdin is used.  Similarly '-' may be used to specify")
+    print ("\tstdin explicitly.")
+    print
+    print ("Options")
+    print
+    print ("\t-d turns on debugging, which is both verbose and terse")
+
 def main():
+    if "-h" in sys.argv:
+        usage()
+        exit(0)
     if sys.argv[1] == "-d":
         debug_on=True
         sys.argv[1:] = sys.argv[2:]
