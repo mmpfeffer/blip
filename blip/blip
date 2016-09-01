@@ -330,7 +330,7 @@ def getIncludeTemplateVars(template, template_vars, posVars, posEnd):
     #print include_template_vars
     return include_template_vars
 
-def handleTaggedAssignment(template, template_vars, var_name, posAssign, posTag, posEnd):
+def handleTaggedAssignment(template, template_vars, var_name, strict, posAssign, posTag, posEnd):
     return_vars = template_vars.copy()
     debug_print("TA: {} {} {}".format(var_name, template[posAssign:posTag].strip(), template[posTag:posEnd]))
     var_value = template[posAssign+2:posTag].strip() # value to assign to variable
@@ -350,10 +350,32 @@ def handleTaggedAssignment(template, template_vars, var_name, posAssign, posTag,
            return_vars[tag_name].append(var_name)
     else: # new tag - single value
        return_vars[tag_name] = var_name
-    return_vars[var_name] = var_value.replace(":==", ":=") # reduce embedded escaped ":="
+    if '[' in var_name: # poor man detection of (json) dictionary expression
+        pos = var_name.find('[')
+        lval_expr = '''return_vars["{}"]{}'''.format(var_name[:pos], var_name[pos:])
+    else:
+        lval_expr = '''return_vars[var_name]'''
+    assign_expr = "{} = {}".format(lval_expr, 'var_value.replace(":==", ":=")') # reduce embedded escaped ":="
+    try:
+        debug_print("TARC: {}".format(assign_expr))
+        eval(compile(assign_expr, "nothing", "single") )
+    except:
+        oops_print(posBegin,
+                   "Unknown or invalid template variable expression =={}== referenced".format(var_name),
+                   template[posBegin:posEnd])
+    debug_print("TAT: {} {} - {}".format(var_name, eval(lval_expr), type(eval(lval_expr))))
+    if not strict:
+        try:
+            assign_expr = "{} = {}".format(lval_expr, "json.loads(var_value)")
+            debug_print("TAJC: {}".format(assign_expr))
+            eval(compile(assign_expr, "nothing", "single"))
+            debug_print("TAJ: {} {} - {}".format(var_name, return_vars[var_name], type(return_vars[var_name])))
+        except:
+            pass # if var value isn't json, that's ok...
+
     return return_vars
 
-def handleUntaggedAssignment(template, template_vars, var_name, posAssign, posEnd):
+def handleUntaggedAssignment(template, template_vars, var_name, strict, posBegin, posAssign, posEnd):
     return_vars = template_vars.copy()
     var_value = template[posAssign+2:posEnd-2].strip()  # value to assign to variable
 
@@ -361,12 +383,37 @@ def handleUntaggedAssignment(template, template_vars, var_name, posAssign, posEn
     #debug_print ("new var: {} $ {}".format(var_name, var_value))
     #debug_print(template_vars)
 
-    return_vars[var_name] = var_value.replace(":==", ":=") # reduce embedded escaped ":="
+    if '[' in var_name: # poor man detection of (json) dictionary expression
+        pos = var_name.find('[')
+        lval_expr = '''return_vars["{}"]{}'''.format(var_name[:pos], var_name[pos:])
+    else:
+        lval_expr = '''return_vars[var_name]'''
+
+    assign_expr = "{} = {}".format(lval_expr, 'var_value.replace(":==", ":=")') # reduce embedded escaped ":="
+    try:
+        debug_print("UARC: {}".format(assign_expr))
+        eval(compile(assign_expr, "nothing", "single") )
+    except:
+        oops_print(posBegin,
+                   "Unknown or invalid template variable expression =={}== referenced".format(var_name),
+                   template[posBegin:posEnd])
+
+    debug_print("UAT: {} {} - {}".format(var_name, eval(lval_expr), type(eval(lval_expr))))
+    if not strict:
+        try:
+            assign_expr = "{} = {}".format(lval_expr, "json.loads(var_value)")
+            debug_print("UAJC: {}".format(assign_expr))
+            eval(compile(assign_expr, "nothing", "single"))
+            debug_print("UAJ: {} {} - {}".format(var_name, return_vars[var_name], type(return_vars[var_name])))
+        except:
+            pass # if var value isn't json, that's ok...
     return return_vars
 
 def handleBlipDirective(template, template_vars, posBegin, posEnd):
     if template[posBegin+2:posEnd-2] == "@vars":
+        print("@vars>>>>>>>>>>>>>>>>>>>>>>")
         pprint(template_vars)
+        print("@vars<<<<<<<<<<<<<<<<<<<<<<")
 
 def handleIndirectVariableReference(template, template_vars, posBegin, posEnd):
     #debug_print(template_vars)
@@ -382,9 +429,11 @@ def handleIndirectVariableReference(template, template_vars, posBegin, posEnd):
 
 def handleAssignment(template, template_vars, posBegin, posAssign, posEnd):
     debug_print("VA: {} {} looking for :{}".format(template[posBegin:posAssign].strip(), template[posAssign:posEnd].strip(), '='*len(buf)))
+    strict = False
     var_name  = template[posBegin+2:posAssign].strip()
     if var_name[0] == '<':
         var_name = var_name[1:]
+        strict = True
 
     posSearch=posAssign+2
     while posSearch < posEnd:
@@ -399,9 +448,9 @@ def handleAssignment(template, template_vars, posBegin, posAssign, posEnd):
                 continue
 
             posTag += posSearch
-            return_vars = handleTaggedAssignment(template, template_vars, var_name, posAssign, posTag, posEnd)
+            return_vars = handleTaggedAssignment(template, template_vars, var_name, strict, posAssign, posTag, posEnd)
         else: # variable assignment has no tags
-            return_vars = handleUntaggedAssignment(template, template_vars, var_name, posAssign, posEnd)
+            return_vars = handleUntaggedAssignment(template, template_vars, var_name, strict, posBegin, posAssign, posEnd)
         break
 
     #debug_print ("after new var: {} = {}".format(var_name, var_value))
@@ -411,15 +460,28 @@ def handleAssignment(template, template_vars, posBegin, posAssign, posEnd):
 def handleVariableSubstitution(template, template_vars, posBegin, posEnd):
     global buf
     template_variable_name = template[posBegin+2:posEnd-2].strip()  #everything inside the '{{' and '}}'
-    if template_variable_name not in template_vars: # if it's new, oops
-        oops_print(posBegin, "Unknown template variable =={}== referenced".format(template_variable_name),
-                   template[posBegin:posEnd])
-    debug_print("  VS: {}".format(template_vars[template_variable_name]))
-    if type(template_vars[template_variable_name]) == type([]):
-        if len(template_vars[template_variable_name]) != 0:
-            buf[-1] += '["' + '", "'.join(template_vars[template_variable_name]) + '"]'
+    if '[' in template_variable_name: # poor man detection of (json) dictionary extraction expression
+        try:
+            pos = template_variable_name.find('[')
+            var_expr = '''template_vars["{}"]{}'''.format(template_variable_name[:pos], template_variable_name[pos:])
+            debug_print("HVSJ: {}".format(var_expr))
+            value = eval(var_expr)
+            if type(value) not in [type(""), type(u'')]: # convert to string if necessary
+                value = json.dumps(value)
+            buf[-1] += value
+        except:
+            oops_print(posBegin,
+                       "Unknown or invalid template variable expression =={}== referenced".format(template_variable_name),
+                       template[posBegin:posEnd])
     else:
-        buf[-1] += template_vars[template_variable_name] # extract the value and add it to the template output
+        if template_variable_name not in template_vars: # if it's new, oops
+            oops_print(posBegin, "Unknown template variable =={}== referenced".format(template_variable_name),
+                       template[posBegin:posEnd])
+        value = template_vars[template_variable_name]
+        debug_print("  VS: {} {}".format(type(value), value))
+        if type(value) not in  [type(""), type(u'')]:
+            value = json.dumps(value)
+        buf[-1] += value # add the value to the template output
 
 def handleAssignmentAndSubstitution(template, template_vars, posBegin, posEnd):
     return_vars = template_vars # default, in case nothing happens.
