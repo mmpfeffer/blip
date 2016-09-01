@@ -424,7 +424,11 @@ def handleIndirectVariableReference(template, template_vars, posBegin, posEnd):
     debug_print("  IVR: {} {}".format(tvar, template_vars[tvar]))
 
     # NOTE: Run indirect reference, and pick up any changes to resulting vars into the current context.
-    return_vars = runTemplate('{{' + template_vars[tvar] + '}}', "(inline)", template_vars)
+    if type(template_vars[tvar]) not in [type(""), type(u'')]:
+        value = json.dumps(template_vars[tvar])
+    else:
+        value = template_vars[tvar]
+    return_vars = runTemplate('{{' + value + '}}', "(inline)", template_vars)
     return return_vars
 
 def handleAssignment(template, template_vars, posBegin, posAssign, posEnd):
