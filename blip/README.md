@@ -88,7 +88,7 @@ Features
    Nested templates may receive parameters, passed at invocation.
    Parameter values are strings (or lists, see below) but otherwise
    are untyped.  If a required parameter is not passed, or previously
-   defined, an error will result. See Interpolation Scope for details
+   defined, an error will result. See Interpolation Scope for details.
 
    Parameter lists consist of json key/values or variable names:
 
@@ -117,11 +117,11 @@ Features
         Hello Abraham Lincoln
 
         NOTE: If the name of the variable in the nested template is the same as in the calling template,
-        the arguments can be omitted from the call ( e.g. {{:greeting:}} ). This is due to the scoping rules
-        for BLIP, which are explained below.
+        the arguments can be omitted from the call ( e.g. {{:greeting:}} ). See 'Template Variables as Implicit
+        Arguments', below.
 
 
-5. Template Variables as Explict Arguments
+5. Template Variables as Explicit Arguments
 
    Example: Template variable value passed explicitly to nested template:
 
@@ -146,7 +146,7 @@ Features
         b.tmpl:
              {{first_name := Abraham}}
              {{last_name  := Lincoln}}
-             {{:greeting:}} {{# Outer scope contains the values needed..}}
+             {{:greeting:}} {{# Outer scope contains the values needed.}}
 
         $ blip b
         Hello Abraham Lincoln
@@ -159,7 +159,7 @@ Features
    the innermost scope which set the variable. If set multiple times in the same
    scope, the most recent setting is used.  If a variable name is set as an argument to
    a nested template, it takes precedence over the calling scope, but the called scope can over-
-   ride the value. An example of this is as follows:
+   ride the value. An illustration of this is as follows:
 
    Example:
         inner.tmpl:
@@ -241,13 +241,14 @@ Features
         c.tmpl
              {{first_name := ["Abraham", "Benjamin"]}}
              {{last_name  := ["Lincoln", "Franklin"]}}
-             {{:a:}} {{# Implicitly passed}}
+             {{:a:}} {{# Implicitly passed parameters 'first_name' and 'last_name'}}
 
         $ blip c
         This is my name: ["Abraham", "Benjamin"] ["Lincoln", "Franklin"]
 
-   This happens because template 'a' is only interpolated once. Explicit parameters, as in the preceding
-   example, are required to extract list values one by one.
+   This happens because implicit parameters are not expanded as lists. Thus template 'a' is only
+   interpolated once. Explicit parameters, as in the preceding example, would be required to extract
+   list values one by one. See Also 'Variable Tagging Groups'.
 
 
 10. Here-Templates
