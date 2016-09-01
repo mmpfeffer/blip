@@ -315,7 +315,14 @@ def getIncludeTemplateVars(template, template_vars, posVars, posEnd):
                     # construct json for include vars by using the variable name.
                     # TODO: fix it so ! can be in the include variable value rather than require it a pos[0]
                     debug_print("ITVA: {} - {}".format(formal_name, template_vars[canon_var_name]))
-                    include_template_vars[formal_name] = template_vars[canon_var_name] # variable substitute
+                    if type(template_vars[canon_var_name]) == type({}):
+                        # Convert the dictionary to a tag-type variable list for use in the template...
+                        include_template_vars[formal_name] = [k for k in template_vars[canon_var_name]]
+                        for k in template_vars[canon_var_name]:
+                            debug_print("ITVK: {} - {}".format(k, template_vars[canon_var_name][k]))
+                            include_template_vars[k] = template_vars[canon_var_name][k]
+                    else:
+                        include_template_vars[formal_name] = template_vars[canon_var_name] # variable substitute
                     debug_print("ITVL: {}".format(include_template_vars))
                     #debug_print("{}".format(template_vars))
                     debug_print("-----------------------")
