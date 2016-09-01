@@ -120,7 +120,7 @@ def getMultivarInfo(include_var_set, posVars):
     for include_var in include_var_set:
        #debug_print(include_var)
        if type(include_var_set[include_var]) == type([]): # var value is a list.
-          debug_print("  MVS: {}".format(include_var_set[include_var]))
+          debug_print("  MVL: {}".format(include_var_set[include_var]))
           multivar.append(include_var)
           if len(multivar) == 1:
               debug_print ('GMIL1 {}'.format(multivar))
@@ -132,6 +132,8 @@ def getMultivarInfo(include_var_set, posVars):
               if len(include_var_set[include_var]) != multivar_len:
                   oops_print(posVars, "Multi-valued variables not of same length ({})".format(multivar_len),
                              "{} : {}".format(include_var, include_var_set))
+       else:
+          debug_print("  MVI: {}".format(include_var_set[include_var]))
 
     return multivar, multivar_len
 
@@ -501,6 +503,7 @@ def processEmbeddedDirectives(template, template_vars, posBegin, posEnd):
 def nextDirective(template, posBegin, posEnd):
     ''' search for '{{' ... '}}' if any. '''
     #debug_print "looking for {{: posBegin: ", posBegin
+    debug_print ("NDT: {} {}".format(type(template), template))
 
     # find the next template directive position, relative to posBegin
     posOpen = findFirstItem(template[posBegin:posEnd], '{{')
