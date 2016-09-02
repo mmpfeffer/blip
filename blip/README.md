@@ -451,3 +451,6 @@ Features
         { "name": "host1", "title": "host1", "cmd" : "sshpass -p secret1 -t -l root 10.0.0.3" },
         { "name": "host2", "title": "host2", "cmd" : "sshpass -p secret1 -t -l root 10.0.0.4" },
         { "name": "host3", "title": "host3", "cmd" : "sshpass -p secret1 -t -l root 10.0.0.5" },
+
+
+MORE: JSON assignments, Dictionary -> Tagged Assignment Conversion.
