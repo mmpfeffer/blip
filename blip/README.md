@@ -131,7 +131,7 @@ Features
         b.tmpl:
              {{first := Abraham}}
              {{last  := Lincoln}}
-             {{:greeting: { "first_name" : {{first}}, "last_name" : {{last}} } }}
+             {{:greeting: { "first_name" : "{{first}}", "last_name" : "{{last}}" } }}
 
         $ blip b
         Hello Abraham Lincoln
