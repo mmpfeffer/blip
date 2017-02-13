@@ -9,8 +9,9 @@ def get_args():
     parser=argparse.ArgumentParser(description="CONTACT Management")
 
     default_file=os.environ['HOME'] + '/Documents/contacts.txt'
-    parser.add_argument("--edit", "-e", action="store_true")
-    parser.add_argument("--file", "-f", metavar='<file>', default=default_file)
+    parser.add_argument("--edit", "-e",  action="store_true")
+    parser.add_argument("--title", "-t", action="store_true")
+    parser.add_argument("--file", "-f",  metavar='<file>', default=default_file)
     parser.add_argument("text", nargs="?", metavar="<text>")
 
     args = parser.parse_args()
@@ -23,30 +24,43 @@ def main():
        os.system("vi {}".format(args.file))
        return 0
 
+    print_all          = not args.text and not args.title
+    and_only_if_title  = not args.text and args.title
+
     match = False
     with open(args.file, 'r') as f:
         lines = f.readlines()
         lines = [line[:-1] for line in lines]
         for i in range(0,len(lines)):
-           if not args.text:
+           if print_all:
                print(lines[i])
                continue
 
            if len(lines[i]):
-               # check for new section (nonblank line w/o leading white space)
+               # check for new section title (i.e. nonblank line w/o leading white space)
                if lines[i][0] not in [' ', '\t']:
                   section_start=i
                   match = False
 
+           if and_only_if_title:
+              # print if it's a title, otherwise, skip
+              if section_start == i:
+                  print(lines[i])
+              continue
+
            if not match: # check for match in the current section
                if lines[i].lower().find(args.text.lower()) != -1:
                    # print all lines from the section so far...
-                   for line in range(section_start, i+1):
-                       print("{}".format(lines[line]))
+                   if args.title:
+                       print("{}".format(lines[section_start]))
+                   else:
+                       for line in range(section_start, i+1):
+                           print("{}".format(lines[line]))
                    match = True # insure remainder of section will be printed
            
            else: # print next line of the matching section
-               print(lines[i])
+               if not args.title:
+                   print(lines[i])
               
 
 if __name__ == '__main__':
