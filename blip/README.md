@@ -62,7 +62,7 @@ Features
         greeting.tmpl:
              {{first := Abraham}}
              {{last  := Lincoln}}
-             Hello, {{first}} {{last}}
+             Hello {{first}} {{last}}
 
         $ blip greeting
         Hello Abraham Lincoln
@@ -72,7 +72,7 @@ Features
    Example: Template variable interpolation inside a nested template
 
         greeting.tmpl:
-             Hello, {{first}} {{last}}
+             Hello {{first}} {{last}}
 
         main.tmpl:
              {{first := Abraham}}
@@ -87,11 +87,14 @@ Features
 
    Nested templates may receive parameters, passed at invocation.
    Parameter values are strings (or lists, see below) but otherwise
-   are untyped.  If a required parameter is not passed, or previously
+   are untyped.  If a required parameter is not passed, nor previously
    defined, an error will result. See Interpolation Scope for details.
 
-   Parameter lists consist of json key/values or variable names:
+   Parameter lists may be given in two forms: json key/values or inline assignment.
 
+       json key/values take the form { "varname" : "value", ... }
+       inline assigment take the form !formalparm=actualparm !...}
+   
    Example: json key/values
 
         greeting.tmpl:
@@ -103,7 +106,7 @@ Features
         $ blip b
         Hello Abraham Lincoln
 
-   Example: variable names
+   Example: inline assignment
 
         greeting.tmpl:
             Hello {{first_name}} {{last_name}}
@@ -185,6 +188,7 @@ Features
              {{c := topC}}
              {{d := topD}}
              {{e := topE}}
+             {{:outer:}}
 
         $ blip top
         "a" has value innerA2
@@ -199,8 +203,8 @@ Features
    If one of the explicit template arguments is a list, the nested template interpolation
    is performed once for each value in the list.  If more than one explicit nested
    template argument is a list, the corresponding value from each explicit nested template
-   variable list will be used when interpolating the template once for each value. At
-   present, all list arguments must have the same number of entries.
+   variable list will be used when interpolating the template once for each value. 
+   All list arguments must have the same number of entries.
 
         name.tmpl:
              This is my name: {{title}} {{first_name}} {{last_name}}
@@ -228,9 +232,11 @@ Features
         b.tmpl:
              {{firsts := ["Abraham", "Benjamin"]}}
              {{lasts  := ["Lincoln", "Franklin"]}}
-             {{:a: { "first_name : {{firsts}}, "last_name" : {{lasts}} } }} {{# Explicitly-passed}}
+             {{:a: { "first_name" : {{firsts}}, "last_name" : {{lasts}} } }} {{# Explicitly-passed}}
 
         $ blip b
+        This is my name: Abraham Lincoln
+        This is my name: Benjamin Franklin 
 
    Here is what happens when attempting to use the variables directly.
    (Remember: variables from outer scopes are available in inner scopes):
@@ -253,8 +259,8 @@ Features
 
 10. Here-Templates
 
-   Templates may defined inside a template file.  Once defined, they may be invoked like
-   template files with a slightly different syntax (the addition of a leading (<)).
+   Templates may defined inside a template file.  Once defined (with a leading <), they may be
+   invoked a slightly different syntax (the addition of a leading (<)).
 
    Example
 
