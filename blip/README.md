@@ -379,7 +379,7 @@ Features
 
    Example:
 
-        fishtanks.tmpl:
+        hosts.tmpl:
              {{# Create a variable group called 'tank'}}
              {{tank1 := 10.0.0.3 := tank}}
              {{tank2 := 10.0.0.4 := tank}}
