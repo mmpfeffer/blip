@@ -636,6 +636,13 @@ def handleIncludeTemplate(template, template_vars, posBegin, posEnd):
     include_template_name = template[posBegin + 2 + len(delimColon):posVars-len(delimColon)].strip()
     #debug_print("include_template_name: =="+include_template_name+ "==")
     if include_template_name[0] == '<': # template as variable
+        if include_template_name[1] == '!': # template name indirect
+            # NOTE: Run indirect reference, and pick up any changes to resulting vars into the current context.
+            if type(template_vars[include_template_name[2:]]) not in [type(""), type(u'')]:
+                include_template_name = '<' + json.dumps(template_vars[include_template_name[2:]])
+            else:
+                include_template_name = '<' + template_vars[include_template_name[2:]]
+
         if include_template_name[1:] not in template_vars:
             oops_print(posBegin, "Here-template not defined.",
                        "{} : {}".format(include_template_name, template[posBegin:posEnd]))

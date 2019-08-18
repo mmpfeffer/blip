@@ -326,6 +326,11 @@ Features
              Indirect Template Invocation:
              {{:!tname}}
 
+             Indirect Here-Template Invocation:
+             {{<mytemp := This is really strange}}
+             {{which := mytemp}}
+             {{:<!which:}} # Invoke
+
         $ blip hosts
         Nest Variable Indirection Output:
         lois
@@ -333,6 +338,9 @@ Features
 
         Indirect Template Invocation:
         This is an embedded template.
+
+        Indirect Here-Template Invocation:
+        This is really strange
 
     NOTE: It is possible to achieve the same effect by (less-elegant) nesting, as follows:
           {{ {{ host }} }}
