@@ -303,30 +303,44 @@ Features
 
 12. Variable Indirection
 
-   It is possible to define a variable containing the name of another variable whose value is desired and to
-   nest such definitions.
+   It is possible to define a variable containing the name of another variable or template whose expansion is desired. In the case
+   of template expansion, a single indirection is supported. For variable expansion, indirection may be nested.
 
    Here is an example of indirection:
 
    Example:
+
+        embedded.tmpl:
+             This is an embedded template.
 
         hosts.tmpl:
              {{host1 := lois}}
              {{host2 := clark}}
              {{host  := host1}}
              {{system := host}}
-             Output:
+             {{tname := embedded}}
+             Nested Variable Indirection Output:
              {{!host}}
              {{!!system}}
 
+             Indirect Template Invocation:
+             {{:!tname}}
+
         $ blip hosts
-        Output:
+        Nest Variable Indirection Output:
         lois
         lois
+
+        Indirect Template Invocation:
+        This is an embedded template.
 
     NOTE: It is possible to achieve the same effect by (less-elegant) nesting, as follows:
           {{ {{ host }} }}
           {{ {{ {{ system }} }} }}
+
+          Using this method, Template invocation indirection may also be nested:
+          {{foo := tname}}
+          {{: {{ {{ foo }} }} :}}  # This resolves to {{:embedded:}}
 
 
 13. Variable Tagging Groups

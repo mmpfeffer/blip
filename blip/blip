@@ -643,6 +643,19 @@ def handleIncludeTemplate(template, template_vars, posBegin, posEnd):
         include_template = template_vars[include_template_name[1:]]
         real_file_name = "({})".format(include_template_name)
     else:
+        if include_template_name[0] == '!': # template name indirect
+
+            # Verify the target variable exists...
+            if include_template_name[1:] not in template_vars:
+                oops_print(posBegin, "Indirect template name not defined", include_template_name[1:])
+                debug_print("  IVR: {} {}".format(tvar, template_vars[tvar]))
+
+            # NOTE: Run indirect reference, and pick up any changes to resulting vars into the current context.
+            if type(template_vars[include_template_name[1:]]) not in [type(""), type(u'')]:
+                include_template_name = json.dumps(template_vars[include_template_name[1:]])
+            else:
+                include_template_name = template_vars[include_template_name[1:]]
+
         include_template, real_file_name = getTemplateContents(include_template_name)
 
     #debug_print ("==={}===".format(template[posVars:posEnd-2]))
