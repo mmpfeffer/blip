@@ -50,7 +50,7 @@ Features
         It was the best of times.
         It was the worst of times.
 
-   NOTE: Template file 'poem2.tmpl' is invoked using the form {{:<template_name>:}}
+   NOTE: Template file 'poem2.tmpl' is invoked using the form {{:template_name:}}
    without the need for the '.tmpl' extension, which is assumed.
 
 
@@ -303,7 +303,9 @@ Features
 
 12. Variable Indirection
 
-   It is possible to define a variable containing the name of another variable whose value is desired.
+   It is possible to define a variable containing the name of another variable whose value is desired and to
+   nest such definitions.
+
    Here is an example of indirection:
 
    Example:
@@ -312,14 +314,19 @@ Features
              {{host1 := lois}}
              {{host2 := clark}}
              {{host  := host1}}
-
+             {{system := host}}
+             Output:
              {{!host}}
+             {{!!system}}
 
         $ blip hosts
+        Output:
+        lois
         lois
 
-    NOTE: It is possible to achieve the same effect by nesting, as follows:
+    NOTE: It is possible to achieve the same effect by (less-elegant) nesting, as follows:
           {{ {{ host }} }}
+          {{ {{ {{ system }} }} }}
 
 
 13. Variable Tagging Groups

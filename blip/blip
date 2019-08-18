@@ -426,6 +426,14 @@ def handleIndirectVariableReference(template, template_vars, posBegin, posEnd):
     #debug_print(template_vars)
     tvar = template[posBegin+3:posEnd-2].strip()
     debug_print("  IVR: {}".format(tvar))
+    indirect_count = 0
+
+    # Count the number of repeated indirections...
+    while tvar[0] == '!':
+        indirect_count += 1
+        tvar = tvar[1:]
+
+    # Verify the target variable exists...
     if tvar not in template_vars:
         oops_print(posBegin, "Indirect variable name not defined", tvar)
     debug_print("  IVR: {} {}".format(tvar, template_vars[tvar]))
@@ -435,6 +443,12 @@ def handleIndirectVariableReference(template, template_vars, posBegin, posEnd):
         value = json.dumps(template_vars[tvar])
     else:
         value = template_vars[tvar]
+
+    # Wrap the result in equivalent indirection expression for nested indirections...
+    while indirect_count > 0:
+        value = ' {{' + value + ' }} '
+        indirect_count -= 1
+
     return_vars = runTemplate('{{' + value + '}}', "(inline)", template_vars)
     return return_vars
 
