@@ -57,12 +57,12 @@ def usage():
     print
     print ("\tblip [options] [template1 [template2 [...] ] ]")
     print ("\ttemplateN specifies the templates to interpolate, in sequence.")
-    print ("'tIf ommitted, stdin is used.  Similarly '-' may be used to specify")
+    print ("'tIf omitted, stdin is used.  Similarly '-' may be used to specify")
     print ("\tstdin explicitly.")
     print
     print ("Options")
     print
-    print ("\t-d turns on debugging, which is both verbose and terse")
+    print ("\t-d turns on debugging, which is both verbose and terse.")
 
 def main():
     if "-h" in sys.argv:
