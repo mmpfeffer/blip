@@ -615,10 +615,10 @@ def handleIncludeTemplate(template, template_vars, posBegin, posEnd):
 
             while i > 0:
                 # NOTE: Run indirect reference, and pick up any changes to resulting vars into the current context.
-                if type(template_vars[include_template_name[2:]]) not in [type(""), type(u'')]:
-                    include_template_name = '<' + json.dumps(template_vars[include_template_name[2:]])
+                if type(template_vars[include_template_name[1:]]) not in [type(""), type(u'')]:
+                    include_template_name = '<' + json.dumps(template_vars[include_template_name[1:]])
                 else:
-                    include_template_name = '<' + template_vars[include_template_name[2:]]
+                    include_template_name = '<' + template_vars[include_template_name[1:]]
                 i = i - 1
 
         if include_template_name[1:] not in template_vars:
