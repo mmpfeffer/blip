@@ -1,14 +1,14 @@
 BLIP
-Summary: A nested template language
+Summary: A nested template language.
 
+
+Requirements
+    Python 2.7, *UNIX*
 
 Installation
 
    Place the 'blip' executable at /usr/local/bin and set it to be
-   executable (755).  As a system-wide utility it is probably
-   appropriate that the installed file '/usr/local/bin/blip' be
-   owned by root.
-
+   owned by root/root and executable (755).
 
 Features
 
@@ -34,8 +34,9 @@ Features
 
    A template file may invoke other template files, causing the invoked
    template to be interpolated at the point of invocation. This is known
-   as template nesting.  Nesting depth is limited only by the
-   Python software function call limits on the host system.
+   as template nesting.  To invoke a template file from within another
+   template use the syntax {{:template_name:}} . Invocations may be nested,
+   limited only by the Python software function call limits on the host system.
 
    Here is a simple example:
 
@@ -56,9 +57,12 @@ Features
 
 3. Template Variables
 
-   Variables can be set once and interpolated later in the file, or used inside nested templates.
+   Variables can be set once and interpolated later, or used inside subsequent nested
+   template invocations.  Variables declared are available in the defining scope and nested
+   template scopes.  However, see "Preservation", below.
 
-   Example: Template variable interpolation later in the file
+   Example: Template variable interpolation later in the file:
+
         greeting.tmpl:
              {{first := Abraham}}
              {{last  := Lincoln}}
@@ -67,33 +71,37 @@ Features
         $ blip greeting
         Hello Abraham Lincoln
 
-   Variables defined before invoking a nested template will be visible in the nested template.
-
    Example: Template variable interpolation inside a nested template
 
         greeting.tmpl:
              Hello {{first}} {{last}}
 
-        main.tmpl:
+        president.tmpl:
              {{first := Abraham}}
              {{last  := Lincoln}}
              {{:greeting:}}
 
-        $ blip main
+        $ blip president
         Hello Abraham Lincoln
 
 
 4. Template Parameters
 
-   Nested templates may receive parameters, passed at invocation.
-   Parameter values are strings (or lists, see below) but otherwise
-   are untyped.  If a required parameter is not passed, nor previously
-   defined, an error will result. See Interpolation Scope for details.
+   Nested templates may receive an arbitrary list of parameters, passed at invocation.
+   They are treated, within the invoked template, the same as other variables.
 
-   Parameter lists may be given in two forms: json key/values or inline assignment.
+   Each parameter's value may be a string or a list of strings (see below) but otherwise
+   is untyped.  See Interpolation Scope, below, for more details on how parameters and other
+   variables are handled.
+
+   Parameters may be given in two forms: json key/values or inline assignment. In json
+   format, the value given is text. In inline assigment, the value given is taken from
+   a variable already defined in the calling scope. This is useful as a nmemonic device
+   when a variable in a calling scope has a different name than the required on in a
+   template being invoked.
 
        json key/values take the form { "varname" : "value", ... }
-       inline assigment take the form !formalparm=actualparm !...}
+       inline assigment take the form !formalparm=some_variable ...}
    
    Example: json key/values
 
@@ -126,7 +134,10 @@ Features
 
 5. Template Variables as Explicit Arguments
 
-   Example: Template variable value passed explicitly to nested template:
+   As shown above, template variables may be passed explicitly.  In this case,
+   the variables are available only within the called scope (and any nested scopes).
+
+   Example: Variable value passed explicitly to nested template:
 
         greeting.tmpl:
              Hello {{first_name}} {{last_name}}
@@ -142,14 +153,18 @@ Features
 
 6. Template Variables as Implicit Arguments
 
-   Example: Template variable taken from outer scope:
+   Template variables may be passed implicitly.  This is simply taking advantage
+   of the automatic nesting of scopes, where variables defined in a calling scope
+   are available in nested scopes.
+
+   Example: Template variable taken from the calling scope:
         greeting.tmpl:
              Hello {{first_name}} {{last_name}}
 
         b.tmpl:
              {{first_name := Abraham}}
              {{last_name  := Lincoln}}
-             {{:greeting:}} {{# Outer scope contains the values needed.}}
+             {{:greeting:}} {{# Calling scope contains the values needed.}}
 
         $ blip b
         Hello Abraham Lincoln
@@ -158,11 +173,11 @@ Features
 7. Interpolation Scope
 
    Each template interpolation has available to it all variable names defined in the current
-   scope all the way to the top-level scope. The value of the variable is taken from
-   the innermost scope which set the variable. If set multiple times in the same
-   scope, the most recent setting is used.  If a variable name is set as an argument to
-   a nested template, it takes precedence over the calling scope, but the called scope can over-
-   ride the value. An illustration of this is as follows:
+   scope all the way to the top-level scope. The value of the variable is taken from the scope
+   which set the variable. If set multiple times in the same scope, the most recent setting is
+   used.  If a variable name is set as an argument to a nested template, it takes precedence
+   over the calling scope, but the called scope can also override the value. An illustration
+   of this is as follows:
 
    Example:
         inner.tmpl:
@@ -200,11 +215,12 @@ Features
 
 8. List Parameters.
 
-   If one of the explicit template arguments is a list, the nested template interpolation
-   is performed once for each value in the list.  If more than one explicit nested
-   template argument is a list, the corresponding value from each explicit nested template
-   variable list will be used when interpolating the template once for each value. 
-   All list arguments must have the same number of entries.
+   If one (or more) of the explicit template arguments is a list, the nested template
+   interpolation is performed once for each value in the list.  If more than one explicit
+   nested template argument is a list, the corresponding value from each explicit nested
+   template variable list will be used when interpolating the template once for each value. 
+   All list arguments must have the same number of entries. Here is a contrived, albeit not
+   very elegant, example:
 
         name.tmpl:
              This is my name: {{title}} {{first_name}} {{last_name}}
@@ -223,23 +239,9 @@ Features
 
 9. List Variables
 
-   Variables may contain lists, just like parameters. However, such variables will not result in multiple
-   interpolations of called templates unless they are passed explicitly, as in the following example.
-
-        a.tmpl:
-             This is my name: {{first_name}} {{last_name}}
-
-        b.tmpl:
-             {{firsts := ["Abraham", "Benjamin"]}}
-             {{lasts  := ["Lincoln", "Franklin"]}}
-             {{:a: { "first_name" : {{firsts}}, "last_name" : {{lasts}} } }} {{# Explicitly-passed}}
-
-        $ blip b
-        This is my name: Abraham Lincoln
-        This is my name: Benjamin Franklin 
-
-   Here is what happens when attempting to use the variables directly.
-   (Remember: variables from outer scopes are available in inner scopes):
+   Implicitly passed Variables may contain lists, just like parameters. However, such variables will not
+   result in multiple interpolations of called templates, as in the following example.  (Remember:
+   variables from outer scopes are available in inner scopes):
 
         a.tmpl:
              This is my name: {{first_name}} {{last_name}}
@@ -260,7 +262,8 @@ Features
 10. Here-Templates
 
    Templates may defined inside a template file.  Once defined (with a leading <), they may be
-   invoked a slightly different syntax (the addition of a leading (<)).
+   invoked as regular variables or, using a special syntax (the addition of a leading (<)) as
+   a template.
 
    Example
 
@@ -268,22 +271,24 @@ Features
              {{<greet := This is my name: {{first_name}} {{last_name}} }}
              {{:<greet: { "first_name" : "Abraham",  "last_name" : "Lincoln"  } }}
              {{:<greet: { "first_name" : "Benjamin", "last_name" : "Franklin" } }}
+             {{greet}} # treat as a variable, for example
 
         $ blip greeting
         This is my name: Abraham Lincoln
-        This is my name: Benjamin Franklin
+        This is my name: Benjamin Franklin 
+        This is my name: {{first_name}} {{last_name}} # treat as a variable, for example
 
    NOTE: Here templates are scoped like variables, so they can be changed in inner scopes,
-   or defined in outer scopes and invoked in inner ones. Here templates may not be explicitly
-   defined in nested template invocations, as variables can.
+   or defined in outer scopes and invoked in inner ones. Note that Here templates may not
+   be explicitly passed in nested template invocations, as variables can.
 
 
 11. Preservation
 
-   It is possible to preserve variable and here-template definitions made in nested templates.
-   This is useful, for example, when defining a set of variables or here-templates in a template
-   file to be used by other templates. To do this, the nested template changes must be *preserved*
-   in the calling scope. To preserve, use two colons when invoking the nested template, as shown
+   It is possible to preserve variable and here-template definitions made inside nested templates.
+   This is useful, for example, when defining a set of variables or here-templates within a template
+   file 'library' to be used by other templates. To do this, the nested template changes may be *preserved*
+   in the calling scope. Use two colons to preserve when invoking the nested template, as shown
    in the following example.
 
    Example:
@@ -303,8 +308,8 @@ Features
 
 12. Variable Indirection
 
-   It is possible to define a variable containing the name of another variable or template whose expansion is desired. In the case
-   of template expansion, a single indirection is supported. For variable expansion, indirection may be nested.
+   It is possible to define a variable containing the name of another variable or template to expand. Indirection
+   may, itself, be nested, as shown below.
 
    Here is an example of indirection:
 
@@ -319,34 +324,40 @@ Features
              {{host  := host1}}
              {{system := host}}
              {{tname := embedded}}
+             {{fname := tname}}
              Nested Variable Indirection Output:
              {{!host}}
-             {{!!system}}
+             {{!!system}} # ! indirection nesting supported
 
-             Indirect Template Invocation:
-             {{:!tname}}
+             Nested Indirect Template Invocation:
+             {{:!{{fname}}:}}
 
              Indirect Here-Template Invocation:
              {{<mytemp := This is really strange}}
              {{which := mytemp}}
-             {{:<!which:}} # Invoke
+             {{who := which}}
+             {{:<!which:}} # Indirect invocation
+             {{:<!{{who}}:}} # Nested indirect invocation
 
         $ blip hosts
-        Nest Variable Indirection Output:
+        Nested Variable Indirection Output:
         lois
-        lois
+        lois # ! indirection nesting supported
 
-        Indirect Template Invocation:
+        Nested Indirect Template Invocation:
         This is an embedded template.
 
         Indirect Here-Template Invocation:
-        This is really strange
+             
+        This is really strange # Indirect invocation
+        This is really strange # Nested indirect invocation
 
     NOTE: It is possible to achieve the same effect by (less-elegant) nesting, as follows:
           {{ {{ host }} }}
           {{ {{ {{ system }} }} }}
 
           Using this method, Template invocation indirection may also be nested:
+          {{tname := embedded}}
           {{foo := tname}}
           {{: {{ {{ foo }} }} :}}  # This resolves to {{:embedded:}}
 
@@ -355,7 +366,11 @@ Features
 
    Variables may be grouped and used together using a tagging notation.  By tagging variables, the tag
    may be used in lieu of the variable names to refer to all the identically tagged variable names as
-   a list.  To specify this, the tag appears after a second ':=', as in the example.
+   a list.  To specify this, the tag appears after a second ':=', as in the example. Note that the resulting
+   list is itself just a regular template variable, and is subject to the same rules and behaviors as other
+   (list) variables.  Thus, for example, passing the tag variable explicitly to a template will result in
+   repeated interpolations of the called template once for each tagged variable. See "Using Variable Tagging
+   Groups with Nested Templates", below, for a special syntax which may be used with variable tagging groups.
 
    Example:
 
@@ -369,9 +384,9 @@ Features
         ["host1", "host2", "host3"]
 
 
-14. Using Variable Groups with Nested Templates
+14. Using Variable Tagging Groups with Nested Templates
 
-   A variable group may be passed to a nested template, much as a list can.  Using a special
+   A variable tagging group may be passed to a nested template, much as a list can.  Using a special
    syntax, the nested template will be interpolated multiple times. With each interpolation,
    the value of the resulting parameter will be the name of each variable in the group.  This
    variable, in turn, may be accessed using indirection.  To simplify understanding of this concept,
@@ -393,7 +408,8 @@ Features
              {{::hosts::}}      {{# define the 'host' variable group. Use double-colon to preserve the group}}
              {{:who: !host}}    {{# pass each variable name in the group 'host' to 'who.tmpl' parameter of the same name}}
 
-            {{# Note that the parameter name 'host' used in 'who.tmpl' must match the group name used in 'main.tmpl'}}
+            {{# Note that the parameter name 'host' used inside 'who.tmpl' must match the group name used when
+              invoking 'who' from 'main.tmpl'}}
 
         $ blip main
         ssh -l root 10.0.0.3 who # check host1
@@ -451,7 +467,7 @@ Features
              {{::sshpass-cmd:: { "auth" : "secret1" } !hostname=lab22}} {{# create variable group 'sshpass-group'}}
 
         The result is a new variable group with the same number of entries as the original, but with more
-        detailed structure.
+        detailed structure. Recall the requirement to use double-colons to preserve the results.
 
 
         The same thing can be accomplished using a here-template for sshpass-cmd. In this case though, to distinguish
