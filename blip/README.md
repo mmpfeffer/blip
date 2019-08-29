@@ -330,14 +330,14 @@ Features
              {{!!system}} # ! indirection nesting supported
 
              Nested Indirect Template Invocation:
-             {{:!{{fname}}:}}
+             {{:!!fname:}}
 
              Indirect Here-Template Invocation:
              {{<mytemp := This is really strange}}
              {{which := mytemp}}
              {{who := which}}
              {{:<!which:}} # Indirect invocation
-             {{:<!{{who}}:}} # Nested indirect invocation
+             {{:<!!who:}} # Nested indirect invocation
 
         $ blip hosts
         Nested Variable Indirection Output:
