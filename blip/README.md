@@ -443,59 +443,67 @@ Features
         ssh -l root 10.0.0.5 who # check tank3
 
 
-16. Here-Template Variable Group Generators.
+16. Quoting
 
-   A template may be defined which can generate a new variable group based on an existing one.  This is easy to do
-   in a template file using features described above. Use template variables to define the resulting variable name,
-   variable value, and the variable group.  This is useful, for example, to expand a simple list of values to a more
+    Quoting may be used to prevent blip from treating certain symbols (such as '{{' or ':=') specially.  For '{{' and '}}'
+    use '{{{{' or '}}}}', respectively. To quote ':=' use ':=='.
+
+17. Variable Group Generator Templates.
+
+   A template may be defined which can generate a new variable group based on an existing one.  This is possible to do
+   in a template file using features described above. First, use template variables to define a group.  Then expand
+   the group by passing it explicitly to a template which in turn creates a new variable group containing entries for
+   each of original variable group members. This is useful, for example, to expand a simple list of values to a more
    complicated data set. Since the resulting group and the original have the same size, they could be passed together
    to a template which combines the values to output something useful.
 
    Example:
-        Generate a variable group containing sshpass commands for each host in a list.
+        Generate a new variable group containing sshpass commands for each host in a previously-defined group.
 
+        {{# Group Generator Template File}}
         sshpass-cmd.tmpl:
              {{sshpass-{{hostname}}-cmd := sshpass -p {{auth}} -t -l root {{!hostname}} := sshpass-group }}
 
 
+        {{# Original group }}
         hosts.tmpl:
              {{host1 := 10.0.0.3 := lab22}}
              {{host2 := 10.0.0.4 := lab22}}
              {{host3 := 10.0.0.5 := lab22}}
 
+        {{# Nested template invocation passing the original a tagging group }}
         main.tmpl:
              {{::sshpass-cmd:: { "auth" : "secret1" } !hostname=lab22}} {{# create variable group 'sshpass-group'}}
 
-        The result is a new variable group with the same number of entries as the original, but with more
-        detailed structure. Recall the requirement to use double-colons to preserve the results.
+        The result is a new variable group but with more detailed structure. Note the use of 
+        double-colons when invoking :sshpass-cmd: to preserve the results.
 
 
-        The same thing can be accomplished using a here-template for sshpass-cmd. In this case though, to distinguish
-        between the here-template assignment and the group variable assignment, both of which are ':=', an additional
-        '=' is added for the internal assignment symbols.  You should be able to spot the two ':==' within the text here:
+        Using quoting, sshpass-cmd may be defined as a here-template rather than in a file:
+        {{# Group Generator Here-Template}}
+         {{<sshpass-cmd := {{ ssh-{{hostname}}-cmd :== sshpass -p {{auth}} -t -l root {{!hostname}} :== sshpass-group }} }}
 
-             {{<sshpass-cmd := {{ ssh-{{hostname}}-cmd :== sshpass -p {{auth}} -t -l root {{!hostname}} :== sshpass-group }} }}
+        ---
 
-        We can now use the original list and new list in a combined call to a final template which uses the lists to output
-        something.
+        We can now use the original group and the new group as parameters to a template to output something useful:
 
-        Suppose, for example, we want to render text as input to a menuing tool that takes json output:
+        Suppose, for example, we want to render text as input to a menuing tool that takes json output in the following format:
 
              { "name" : "NAMETEXT", "title" : "TITLETEXT", "cmd" : "CMDTEXT" }
 
         where "NAMETEXT" is displayed in a drop down menu, "TITLETEXT" appears in the window opened when the item is selected,
-        and "CMDTEXT" is executed in a shell attached to the opened window.  The BLIP code reflecting this would be:
+        and "CMDTEXT" is executed in a shell attached to the opened window.  The BLIP template to generate this would be:
 
              {{<menu-item := { "name": "{{name}}", "title": "{{name}}", "cmd" : "{{!cmd}}" }, }}
 
-             NOTE: 'cmd' is given with an indirection symbol in '<menu-item'. That's because the value of 'cmd' will come from the
-             'sshpass-group' list of variables containing sshpass commands.
+             NOTE: 'cmd' is given with an indirection symbol in '<menu-item'. That's because the value of 'cmd' will come from a
+             tagging group containing the command list (e.g. 'sshpass-group')
 
-        Finally, we invoke our group-generator with a list of hostnames to create variable group 'sshpass-group',
-        and invoke the '<menu-item' template with the host list and ssh-pass command list to combine into menu items:
+        Finally, we invoke the '<menu-item' template with the host list and ssh-pass command list to combine into menu items:
 
-             {{::<sshpass-cmd:: { "auth" : "secret1" } !hostname=lab22}}
              {{:<menu-item: !name=lab22 !cmd=sshpass-group}}
+
+        Since both groups have the same length (required when passing lists or groups), this results in the following output:
 
 
         $ blip main.tmpl
