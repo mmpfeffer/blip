@@ -180,6 +180,7 @@ Features
    of this is as follows:
 
    Example:
+   
         inner.tmpl:
              {{a := innerA}}
              {{d := innerD}}
