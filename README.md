@@ -94,26 +94,18 @@ Features
    is untyped.  See Interpolation Scope, below, for more details on how parameters and other
    variables are handled.
 
-   Parameters may be given in two forms: json key/values or inline assignment. In json
+   Parameters may be given in two forms: json dictionaries or inline assignment. In json
    format, the value given is text. In inline assigment, the value given is taken from
    a variable already defined in the calling scope. This is useful as a nmemonic device
    when a variable in a calling scope has a different name than the required on in a
    template being invoked.
 
-       json key/values take the form { "varname" : "value", ... }
        inline assigment take the form !formalparm=some_variable ...}
+       json key/values take the form { "varname" : "value", ... },
+       
+   Json parameters can be nested dictionaries, not just scalars. 
+   In such a case the desired nested value can be extracted in the called template.
    
-   Example: json key/values
-
-        greeting.tmpl:
-             Hello {{first_name}} {{last_name}}
-
-        b.tmpl:
-             {{:greeting: { "first_name" : "Abraham", "last_name" : "Lincoln" } }}
-
-        $ blip b
-        Hello Abraham Lincoln
-
    Example: inline assignment
 
         greeting.tmpl:
@@ -130,7 +122,30 @@ Features
         NOTE: If the name of the variable in the nested template is the same as in the calling template,
         the arguments can be omitted from the call ( e.g. {{:greeting:}} ). See 'Template Variables as Implicit
         Arguments', below.
+  
+   Example: json key/values
 
+        greeting.tmpl:
+             Hello {{first_name}} {{last_name}}
+
+        b.tmpl:
+             {{:greeting: { "first_name" : "Abraham", "last_name" : "Lincoln" } }}
+
+        $ blip b
+        Hello Abraham Lincoln
+
+   Example: nested json
+   
+        greeting.tmpl:
+            Hello {{name["first"]}} {{name["last"]}}
+
+        b.tmpl:
+             {{:greeting: { "name" : { "first" : "Abraham", "last" : "Lincoln" } } }}
+
+        $ blip b
+        Hello Abraham Lincoln
+
+   
 
 5. Template Variables as Explicit Arguments
 
